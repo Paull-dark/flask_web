@@ -1,19 +1,20 @@
+import bcrypt
+import spacy
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 from pymongo import MongoClient
-import bcrypt
-import spacy
+import os
 
 app = Flask(__name__)
 api = Api(app)
 
-client = MongoClient("mongodb://db.27017")
+client = MongoClient(os.environ.get('MONGODB_HOST', 'localhost'))
 db = client.SimilarityDB
 users = db["Users"]
 
 
 def UserExist(username):
-    if users.find({"Username": username}).count() == 0:
+    if db.users.count_documents({"Username": username}) == 0:
         return False
     else:
         return True
@@ -52,7 +53,7 @@ def verifyPw(username, password):
     if not UserExist(username):
         return False
 
-    hashed_pw = users.find({
+    hashed_pw = db.users.find({
         "Username": username
     })[0]["Password"]
 
@@ -63,7 +64,7 @@ def verifyPw(username, password):
 
 
 def countTokens(username):
-    tokens = users.find({
+    tokens = db.users.find({
         "Username": username
     })[0]["Tokens"]
     return tokens
@@ -119,7 +120,7 @@ class Detect(Resource):
         }
 
         current_tok = countTokens(username)
-        users.update({
+        db.users.update({
             "Username": username, },
             {
                 "$set": {
@@ -127,3 +128,49 @@ class Detect(Resource):
                 }
             })
         return jsonify(retJson)
+
+
+class Refill(Resource):
+    def post(self):
+        postedData = request.get_json()
+
+        username = postedData["username"]
+        password = postedData["admin_pw"]
+        refill_ammount = postedData["refill"]
+
+        if not UserExist(username):
+            retJson = {
+                "status": 301,
+                "msg": "Invalid username"
+            }
+            return jsonify(retJson)
+
+        correct_pw = "abc123"
+        if not password == correct_pw:
+            retJson = {
+                "status": "302",
+                "msg": "Invalid admin password"
+            }
+            return jsonify(retJson)
+
+        # current_tokens = countTokens(username)
+        db.users.update({
+            "Username": username
+        }, {
+            "$set": {
+                "Tokens": refill_ammount
+            }
+        })
+        retJson = {
+            "status": 301,
+            "msg": "REFILLED TOKENS"
+        }
+        return jsonify(retJson)
+
+
+api.add_resource(Register, '/register')
+api.add_resource(Detect, '/detect')
+api.add_resource(Refill, '/refill')
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0')

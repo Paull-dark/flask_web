@@ -80,7 +80,7 @@ class Store(Resource):
         num_tokens = countTokens(username)
         if num_tokens <= 0:
             retJson = {
-                "status": 301
+                "status": 301y
             }
             return jsonify(retJson)
 
