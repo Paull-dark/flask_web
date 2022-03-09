@@ -3,12 +3,15 @@ import spacy
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 from pymongo import MongoClient
+import en_core_web_sm
 import os
 
 app = Flask(__name__)
 api = Api(app)
 
-client = MongoClient(os.environ.get('MONGODB_HOST', 'localhost'))
+#client = MongoClient(os.environ.get('MONGODB_HOST', 'localhost'))
+client = MongoClient("mongodb://db:27017")
+
 db = client.SimilarityDB
 users = db["Users"]
 
@@ -25,8 +28,8 @@ class Register(Resource):
     def post(self):
         postedData = request.get_json()
 
-        username = postedData["username"]
-        password = postedData["password"]
+        username = postedData["Username"]
+        password = postedData["Password"]
 
         if UserExist(username):
             retJson = {"status": 301,
@@ -36,7 +39,7 @@ class Register(Resource):
 
         hashed_pw = bcrypt.hashpw(password.encode('utf8'), bcrypt.gensalt())
 
-        users.insert({
+        db.users.insert_one({
             "Username": username,
             "Password": hashed_pw,
             "Tokens": 6
@@ -76,8 +79,8 @@ class Detect(Resource):
 
         postedData = request.get_json()
 
-        username = postedData["username"]
-        password = postedData["password"]
+        username = postedData["Username"]
+        password = postedData["Password"]
         text1 = postedData["text1"]
         text2 = postedData["text2"]
 
@@ -106,7 +109,8 @@ class Detect(Resource):
             return jsonify(retJson)
 
         # Calculate edit distance
-        nlp = spacy.load('en_core_web_sm')
+        #nlp = spacy.load("en_core_web_sm")
+        nlp = en_core_web_sm.load()
 
         text1 = nlp(text1)
         text2 = nlp(text2)
@@ -120,7 +124,7 @@ class Detect(Resource):
         }
 
         current_tok = countTokens(username)
-        db.users.update({
+        db.users.update_one({
             "Username": username, },
             {
                 "$set": {
@@ -134,7 +138,7 @@ class Refill(Resource):
     def post(self):
         postedData = request.get_json()
 
-        username = postedData["username"]
+        username = postedData["Username"]
         password = postedData["admin_pw"]
         refill_ammount = postedData["refill"]
 
@@ -154,7 +158,7 @@ class Refill(Resource):
             return jsonify(retJson)
 
         # current_tokens = countTokens(username)
-        db.users.update({
+        db.users.update_one({
             "Username": username
         }, {
             "$set": {
